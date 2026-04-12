@@ -62,6 +62,19 @@ func New() *Driver {
 	return &Driver{}
 }
 
+// init registers the codex driver so main can resolve it via driver.Lookup
+// without importing this package directly (main uses a blank import for the
+// side effect). --yolo is a mandatory flag for automated use: it disables
+// per-tool approval prompts that would otherwise deadlock an orchestrator.
+func init() {
+	driver.Register(driver.Registration{
+		Name:        "codex",
+		Binary:      "codex",
+		DefaultArgs: []string{"--yolo"},
+		Factory:     func() driver.Driver { return New() },
+	})
+}
+
 // Name returns the agent identifier.
 func (d *Driver) Name() string {
 	return "codex"
