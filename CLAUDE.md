@@ -1,5 +1,9 @@
 # CLAUDE.md
 
+## Project tracking
+
+Linear project: https://linear.app/weill-labs/project/mule-0f918bb42136
+
 ## What is mule?
 
 A PTY driver for AI coding agents. It spawns agent TUIs (codex, claude) inside an inner PTY, passes through all I/O for visual display, and provides a Unix socket API for programmatic control. The VT emulator tracks screen state internally so the driver knows what the agent is doing without external screen scraping.

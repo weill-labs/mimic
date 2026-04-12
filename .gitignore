@@ -1,6 +1,11 @@
-# Binaries
-mule
+# Binaries (anchored to repo root so we don't accidentally ignore
+# cmd/codex-probe/ — the source dir for the probe).
+/mule
+/codex-probe
 *.exe
+
+# Claude Code session state
+.claude/
 
 # Test artifacts
 *.test

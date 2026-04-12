@@ -4,6 +4,7 @@
 package screen
 
 import (
+	"io"
 	"strings"
 	"sync"
 
@@ -12,6 +13,14 @@ import (
 
 // Tracker maintains a parsed screen buffer by feeding agent PTY output
 // through a VT emulator.
+//
+// The VT emulator answers terminal queries (DSR, DA, cursor position, etc.)
+// by writing into an internal pipe. If nobody drains that pipe, the next
+// query handler blocks forever while holding the emulator's write lock,
+// deadlocking subsequent Render calls. The tracker spawns a background
+// drain goroutine to discard those responses — the outer real terminal is
+// what actually answers the agent's queries; the tracker's responses are
+// purely an artifact of the emulator's design.
 type Tracker struct {
 	mu  sync.Mutex
 	emu *vt.SafeEmulator
@@ -19,9 +28,16 @@ type Tracker struct {
 
 // NewTracker creates a screen tracker with the given dimensions.
 func NewTracker(cols, rows int) *Tracker {
-	return &Tracker{
+	t := &Tracker{
 		emu: vt.NewSafeEmulator(cols, rows),
 	}
+	// Drain the emulator's response pipe so DSR/DA/etc. handlers don't
+	// block holding the write lock. We discard responses; the outer
+	// terminal handles real query responses for the agent.
+	go func() {
+		_, _ = io.Copy(io.Discard, t.emu)
+	}()
+	return t
 }
 
 // Write feeds raw PTY output into the VT emulator. It implements io.Writer
