@@ -1,0 +1,29 @@
+[2m╭─────────────────────────────────────────────╮[m
+[2m│ >_ [22;1mOpenAI Codex[22;2m (v0.120.0)                  │[m
+[2m│                                             │[m
+[2m│ model:     [mgpt-5.4 xhigh[2m   [38;5;6;22m/model[39;2m to change │[m
+[2m│ directory: [m/tmp/untrusted-codex[2m             │[m
+[2m╰─────────────────────────────────────────────╯[m
+
+  [1mTip:[m [3mNew[m Use [1m/fast[m to enable our fastest inference at 2X plan usage.
+
+
+[1;2m› [mwrite a 6 line poem about ferrets, slowly thinking step by step
+
+
+[38;2;231;231;231;1m•[m [38;2;138;138;138;1mW[38;2;167;167;167mo[38;2;202;202;202mr[38;2;231;231;231mk[38;2;242;242;242mi[38;2;231;231;231mn[38;2;202;202;202mg[m [2m(0s • esc to interrupt)[m
+
+
+[1m›[m [2mWrite tests for @filename[m
+
+[2m  gpt-5.4 xhigh · /tmp/untrusted-codex · Context [     ] · 5h 97% · weekly 78%[m
+
+
+
+
+
+
+
+
+
+
