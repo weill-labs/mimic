@@ -62,6 +62,22 @@ type Screen interface {
 	Height() int
 }
 
+// Submission describes how to type and submit a prompt.
+type Submission struct {
+	// Body contains the prompt bytes to type before submission.
+	Body []byte
+
+	// Submit contains the final key sequence that submits the prompt.
+	Submit []byte
+
+	// KeyDelay is the recommended pause between consecutive body bytes.
+	KeyDelay time.Duration
+
+	// SettleDelay is the recommended pause after typing the body and
+	// before writing the submit bytes.
+	SettleDelay time.Duration
+}
+
 // Driver is the interface every agent driver implements.
 type Driver interface {
 	// Name is a stable identifier for the agent (e.g. "codex", "claude").
@@ -71,24 +87,11 @@ type Driver interface {
 	// best-matching State. Drivers should never block.
 	DetectState(screen Screen) State
 
-	// SubmitPrompt returns the byte sequence to type and submit a prompt.
-	// The bytes are intended to be written to the agent's input PTY in
-	// order, with the inter-key delay returned by KeyDelay() between bytes.
-	// Drivers that need a longer pause between the prompt body and the
-	// final submit key encode that with the SubmitSettleDelay() value.
-	SubmitPrompt(prompt string) []byte
+	// SubmitPrompt returns the structured prompt body, submit bytes, and
+	// the recommended pacing between them.
+	SubmitPrompt(prompt string) Submission
 
 	// CancelWork returns the byte sequence to cancel in-progress work.
 	// For most agents this is a single Esc; some may use Ctrl+C.
 	CancelWork() []byte
-
-	// KeyDelay is the recommended delay between consecutive bytes from
-	// SubmitPrompt. Most TUIs need a small delay (10-30ms) so the input
-	// handler treats characters as keystrokes rather than a paste.
-	KeyDelay() time.Duration
-
-	// SubmitSettleDelay is the recommended pause AFTER typing the prompt
-	// body and BEFORE the final submit key (Enter). It gives the TUI time
-	// to render the typed text and settle so the submit key takes effect.
-	SubmitSettleDelay() time.Duration
 }

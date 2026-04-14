@@ -96,22 +96,18 @@ func TestIntegration_CodexSubmitAndComplete(t *testing.T) {
 	}
 
 	// 2. Type the prompt char-by-char at the driver's recommended cadence.
-	prompt := d.SubmitPrompt("say hi in one word")
-	if len(prompt) == 0 {
+	sub := d.SubmitPrompt("say hi in one word")
+	if len(sub.Body) == 0 || len(sub.Submit) == 0 {
 		t.Fatal("SubmitPrompt returned empty")
 	}
-	// SubmitPrompt returns body+\r. Send the body bytes one at a time, then
-	// the trailing carriage return after a settle delay so codex's render
-	// loop processes the body before the submit key arrives.
-	body, submit := prompt[:len(prompt)-1], prompt[len(prompt)-1]
-	for _, b := range body {
+	for _, b := range sub.Body {
 		if _, err := ptmx.Write([]byte{b}); err != nil {
 			t.Fatalf("write key %q: %v", b, err)
 		}
-		time.Sleep(d.KeyDelay())
+		time.Sleep(sub.KeyDelay)
 	}
-	time.Sleep(d.SubmitSettleDelay())
-	if _, err := ptmx.Write([]byte{submit}); err != nil {
+	time.Sleep(sub.SettleDelay)
+	if _, err := ptmx.Write(sub.Submit); err != nil {
 		t.Fatalf("write submit key: %v", err)
 	}
 
@@ -187,13 +183,13 @@ func TestIntegration_CodexCancelWork(t *testing.T) {
 	}
 
 	// Submit a long prompt so we have time to cancel.
-	body := []byte("write a very long detailed essay about the history of typewriters")
-	for _, b := range body {
+	sub := d.SubmitPrompt("write a very long detailed essay about the history of typewriters")
+	for _, b := range sub.Body {
 		_, _ = ptmx.Write([]byte{b})
-		time.Sleep(d.KeyDelay())
+		time.Sleep(sub.KeyDelay)
 	}
-	time.Sleep(d.SubmitSettleDelay())
-	_, _ = ptmx.Write([]byte{'\r'})
+	time.Sleep(sub.SettleDelay)
+	_, _ = ptmx.Write(sub.Submit)
 
 	if got := waitForState(t, d, tracker, driver.StateWorking, 5*time.Second); got != driver.StateWorking {
 		t.Fatalf("codex did not enter working state: last=%q", got)
