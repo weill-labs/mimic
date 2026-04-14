@@ -6,7 +6,6 @@ package screen
 import (
 	"io"
 	"strings"
-	"sync"
 
 	"github.com/charmbracelet/x/vt"
 )
@@ -22,7 +21,6 @@ import (
 // what actually answers the agent's queries; the tracker's responses are
 // purely an artifact of the emulator's design.
 type Tracker struct {
-	mu  sync.Mutex
 	emu *vt.SafeEmulator
 }
 
@@ -46,6 +44,11 @@ func (t *Tracker) Write(p []byte) (int, error) {
 	return t.emu.Write(p)
 }
 
+// Close stops the emulator response drain goroutine.
+func (t *Tracker) Close() error {
+	return t.emu.Close()
+}
+
 // Resize updates the tracked screen dimensions.
 func (t *Tracker) Resize(cols, rows int) {
 	t.emu.Resize(cols, rows)
@@ -58,8 +61,6 @@ func (t *Tracker) Render() string {
 
 // Line returns the text content of a 0-indexed screen row.
 func (t *Tracker) Line(row int) string {
-	t.mu.Lock()
-	defer t.mu.Unlock()
 	lines := strings.Split(t.emu.Render(), "\n")
 	if row < 0 || row >= len(lines) {
 		return ""
