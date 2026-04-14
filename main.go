@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
+	"github.com/weill-labs/mimic/internal/api"
 	"github.com/weill-labs/mimic/internal/driver"
 	"github.com/weill-labs/mimic/internal/pty"
 	"github.com/weill-labs/mimic/internal/screen"
@@ -14,28 +18,31 @@ import (
 )
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "usage: mimic <agent> [--socket PATH] [-- agent-args...]\n")
-		fmt.Fprintf(os.Stderr, "available agents: %s\n", registeredAgentsList())
-		os.Exit(2)
+		printUsage()
+		return 2
 	}
 
 	agent := os.Args[1]
-	extraArgs := os.Args[2:]
+	socketPath, extraArgs, err := parseCLIArgs(os.Args[2:])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "mimic: %v\n", err)
+		printUsage()
+		return 2
+	}
 
 	// Resolve the agent via the driver registry. This gives us both the
-	// driver implementation (for future state detection / submit / cancel)
-	// and the binary+args needed to actually spawn the agent process.
+	// driver implementation (for state detection / submit / cancel) and the
+	// binary+args needed to actually spawn the agent process.
 	resolved, err := driver.Lookup(agent)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "mimic: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
-
-	// TODO(phase-3): hand `resolved.Driver` to the socket dispatcher once
-	// the Unix socket API (weill-labs/mimic#2) lands. For now the driver is
-	// resolved only to validate the agent name at startup.
-	_ = resolved.Driver
 
 	// Build the final arg vector: driver-mandated defaults first, then
 	// whatever the user passed. Defaults like codex's --yolo can't be
@@ -46,14 +53,50 @@ func main() {
 
 	// Create screen tracker (VT emulator for internal screen state).
 	tracker := screen.NewTracker(80, 24)
+	defer tracker.Close()
 
-	// Spawn agent in inner PTY with passthrough + screen tracking.
-	exitCode, err := pty.RunPassthrough(resolved.Binary, binaryArgs, tracker)
+	session, err := pty.StartPassthrough(resolved.Binary, binaryArgs, tracker)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "mimic: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
-	os.Exit(exitCode)
+	defer session.Close()
+
+	var dispatcher *api.Dispatcher
+	var server *api.Server
+
+	if socketPath != "" {
+		dispatcher = api.NewDispatcher(resolved.Driver, tracker, session.PTMX())
+		defer dispatcher.Close()
+
+		server, err = api.NewServer(socketPath, dispatcher)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "mimic: %v\n", err)
+			return 1
+		}
+		defer server.Close()
+	}
+
+	shutdownCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		<-shutdownCtx.Done()
+		if server != nil {
+			_ = server.Close()
+		}
+		if dispatcher != nil {
+			dispatcher.Close()
+		}
+		_ = session.Close()
+	}()
+
+	exitCode, err := session.Wait()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "mimic: %v\n", err)
+		return 1
+	}
+	return exitCode
 }
 
 // registeredAgentsList returns a comma-separated list of registered agents
@@ -69,4 +112,32 @@ func registeredAgentsList() string {
 		out += ", " + n
 	}
 	return out
+}
+
+func printUsage() {
+	fmt.Fprintf(os.Stderr, "usage: mimic <agent> [--socket PATH] [-- agent-args...]\n")
+	fmt.Fprintf(os.Stderr, "available agents: %s\n", registeredAgentsList())
+}
+
+func parseCLIArgs(args []string) (string, []string, error) {
+	var socketPath string
+	var extraArgs []string
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--":
+			extraArgs = append(extraArgs, args[i+1:]...)
+			return socketPath, extraArgs, nil
+		case "--socket":
+			if i+1 >= len(args) {
+				return "", nil, fmt.Errorf("--socket requires a path")
+			}
+			socketPath = args[i+1]
+			i++
+		default:
+			extraArgs = append(extraArgs, args[i])
+		}
+	}
+
+	return socketPath, extraArgs, nil
 }

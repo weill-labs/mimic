@@ -3,6 +3,7 @@
 package pty
 
 import (
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -11,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/creack/pty"
+	"github.com/muesli/cancelreader"
 	"golang.org/x/term"
 )
 
@@ -20,60 +22,98 @@ type OutputObserver interface {
 	Resize(cols, rows int)
 }
 
-// RunPassthrough spawns the given command in an inner PTY, sets the outer
+// Session is a running passthrough PTY session.
+type Session struct {
+	cmd      *exec.Cmd
+	ptmx     *os.File
+	oldState *term.State
+	stdin    cancelreader.CancelReader
+	sigCh    chan os.Signal
+	sigDone  chan struct{}
+
+	wg        sync.WaitGroup
+	closeOnce sync.Once
+	closeErr  error
+}
+
+// StartPassthrough spawns the given command in an inner PTY, sets the outer
 // terminal to raw mode, and forwards I/O bidirectionally. Output is also
-// tee'd to the observer for screen tracking. Returns the child exit code.
-func RunPassthrough(name string, args []string, observer OutputObserver) (int, error) {
+// tee'd to the observer for screen tracking.
+func StartPassthrough(name string, args []string, observer OutputObserver) (*Session, error) {
 	cmd := exec.Command(name, args...)
 	cmd.Env = os.Environ()
 
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
-		return 1, err
+		return nil, err
 	}
-	defer ptmx.Close()
 
 	// Put outer terminal in raw mode.
 	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
-		return 1, err
+		_ = ptmx.Close()
+		return nil, err
 	}
-	defer term.Restore(int(os.Stdin.Fd()), oldState)
+
+	stdin, err := cancelreader.NewReader(os.Stdin)
+	if err != nil {
+		_ = term.Restore(int(os.Stdin.Fd()), oldState)
+		_ = ptmx.Close()
+		return nil, err
+	}
+
+	session := &Session{
+		cmd:      cmd,
+		ptmx:     ptmx,
+		oldState: oldState,
+		stdin:    stdin,
+		sigCh:    make(chan os.Signal, 1),
+		sigDone:  make(chan struct{}),
+	}
 
 	// Sync inner PTY size to outer terminal size.
 	syncSize(ptmx, observer)
 
 	// Handle SIGWINCH to keep sizes in sync.
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGWINCH)
+	signal.Notify(session.sigCh, syscall.SIGWINCH)
 	go func() {
-		for range sigCh {
-			syncSize(ptmx, observer)
+		for {
+			select {
+			case <-session.sigDone:
+				return
+			case <-session.sigCh:
+				syncSize(ptmx, observer)
+			}
 		}
 	}()
-	defer signal.Stop(sigCh)
 
 	// Bidirectional I/O forwarding.
-	var wg sync.WaitGroup
-
-	// stdin → inner PTY
-	wg.Add(1)
+	session.wg.Add(1)
 	go func() {
-		defer wg.Done()
-		io.Copy(ptmx, os.Stdin)
+		defer session.wg.Done()
+		_, _ = io.Copy(ptmx, stdin)
 	}()
 
-	// inner PTY → stdout + observer
-	wg.Add(1)
+	session.wg.Add(1)
 	go func() {
-		defer wg.Done()
+		defer session.wg.Done()
 		w := io.MultiWriter(os.Stdout, observer)
-		io.Copy(w, ptmx)
+		_, _ = io.Copy(w, ptmx)
 	}()
 
-	// Wait for child to exit.
-	err = cmd.Wait()
-	wg.Wait()
+	return session, nil
+}
+
+// PTMX returns the inner PTY handle so callers can write control bytes into it.
+func (s *Session) PTMX() *os.File {
+	return s.ptmx
+}
+
+// Wait waits for the child to exit and returns its exit code.
+func (s *Session) Wait() (int, error) {
+	err := s.cmd.Wait()
+	_ = s.Close()
+	s.wg.Wait()
 
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
@@ -84,12 +124,48 @@ func RunPassthrough(name string, args []string, observer OutputObserver) (int, e
 	return 0, nil
 }
 
+// Close tears down the PTY session and restores the outer terminal.
+func (s *Session) Close() error {
+	s.closeOnce.Do(func() {
+		signal.Stop(s.sigCh)
+		close(s.sigDone)
+
+		if s.stdin != nil {
+			s.stdin.Cancel()
+			if err := s.stdin.Close(); err != nil && s.closeErr == nil {
+				s.closeErr = err
+			}
+		}
+		if s.ptmx != nil {
+			if err := s.ptmx.Close(); err != nil && s.closeErr == nil && !errors.Is(err, os.ErrClosed) {
+				s.closeErr = err
+			}
+		}
+		if s.oldState != nil {
+			if err := term.Restore(int(os.Stdin.Fd()), s.oldState); err != nil && s.closeErr == nil {
+				s.closeErr = err
+			}
+		}
+	})
+	return s.closeErr
+}
+
+// RunPassthrough is the compatibility helper that starts a session and waits
+// for it to complete.
+func RunPassthrough(name string, args []string, observer OutputObserver) (int, error) {
+	session, err := StartPassthrough(name, args, observer)
+	if err != nil {
+		return 1, err
+	}
+	return session.Wait()
+}
+
 func syncSize(ptmx *os.File, observer OutputObserver) {
 	cols, rows, err := term.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
 		return
 	}
-	pty.Setsize(ptmx, &pty.Winsize{
+	_ = pty.Setsize(ptmx, &pty.Winsize{
 		Cols: uint16(cols),
 		Rows: uint16(rows),
 	})
