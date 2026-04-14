@@ -2,16 +2,16 @@
 
 ## Project tracking
 
-Linear project: https://linear.app/weill-labs/project/mule-0f918bb42136
+Linear project: https://linear.app/weill-labs/project/mimic-0f918bb42136
 
-## What is mule?
+## What is mimic?
 
 A PTY driver for AI coding agents. It spawns agent TUIs (codex, claude) inside an inner PTY, passes through all I/O for visual display, and provides a Unix socket API for programmatic control. The VT emulator tracks screen state internally so the driver knows what the agent is doing without external screen scraping.
 
 ## Architecture
 
 ```
-outer terminal ←→ mule ←→ inner PTY ←→ agent TUI (codex/claude)
+outer terminal ←→ mimic ←→ inner PTY ←→ agent TUI (codex/claude)
                     ↕
               Unix socket ←→ orchestrator (orca)
 ```
@@ -42,7 +42,7 @@ type Driver interface {
 ## Development
 
 ```bash
-go build -o mule .
+go build -o mimic .
 go test ./...
 ```
 

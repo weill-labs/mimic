@@ -4,18 +4,18 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/weill-labs/mule/internal/driver"
-	"github.com/weill-labs/mule/internal/pty"
-	"github.com/weill-labs/mule/internal/screen"
+	"github.com/weill-labs/mimic/internal/driver"
+	"github.com/weill-labs/mimic/internal/pty"
+	"github.com/weill-labs/mimic/internal/screen"
 
 	// Side-effect imports: each driver package registers itself in its
 	// init() so driver.Lookup can find it. Add new driver packages here.
-	_ "github.com/weill-labs/mule/internal/driver/codex"
+	_ "github.com/weill-labs/mimic/internal/driver/codex"
 )
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "usage: mule <agent> [--socket PATH] [-- agent-args...]\n")
+		fmt.Fprintf(os.Stderr, "usage: mimic <agent> [--socket PATH] [-- agent-args...]\n")
 		fmt.Fprintf(os.Stderr, "available agents: %s\n", registeredAgentsList())
 		os.Exit(2)
 	}
@@ -28,12 +28,12 @@ func main() {
 	// and the binary+args needed to actually spawn the agent process.
 	resolved, err := driver.Lookup(agent)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "mule: %v\n", err)
+		fmt.Fprintf(os.Stderr, "mimic: %v\n", err)
 		os.Exit(1)
 	}
 
 	// TODO(phase-3): hand `resolved.Driver` to the socket dispatcher once
-	// the Unix socket API (weill-labs/mule#2) lands. For now the driver is
+	// the Unix socket API (weill-labs/mimic#2) lands. For now the driver is
 	// resolved only to validate the agent name at startup.
 	_ = resolved.Driver
 
@@ -50,7 +50,7 @@ func main() {
 	// Spawn agent in inner PTY with passthrough + screen tracking.
 	exitCode, err := pty.RunPassthrough(resolved.Binary, binaryArgs, tracker)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "mule: %v\n", err)
+		fmt.Fprintf(os.Stderr, "mimic: %v\n", err)
 		os.Exit(1)
 	}
 	os.Exit(exitCode)
@@ -62,7 +62,7 @@ func main() {
 func registeredAgentsList() string {
 	names := driver.Registered()
 	if len(names) == 0 {
-		return "(none — build mule with a driver side-effect import)"
+		return "(none — build mimic with a driver side-effect import)"
 	}
 	out := names[0]
 	for _, n := range names[1:] {
