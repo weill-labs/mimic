@@ -3,7 +3,6 @@ package driver
 import (
 	"strings"
 	"testing"
-	"time"
 )
 
 // fakeDriver is a minimal driver used only by registry tests. It doesn't
@@ -12,12 +11,10 @@ import (
 // driver registrations).
 type fakeDriver struct{ name string }
 
-func (f *fakeDriver) Name() string                        { return f.name }
-func (f *fakeDriver) DetectState(Screen) State            { return StateUnknown }
-func (f *fakeDriver) SubmitPrompt(string) []byte          { return nil }
-func (f *fakeDriver) CancelWork() []byte                  { return nil }
-func (f *fakeDriver) KeyDelay() time.Duration             { return 0 }
-func (f *fakeDriver) SubmitSettleDelay() time.Duration    { return 0 }
+func (f *fakeDriver) Name() string                   { return f.name }
+func (f *fakeDriver) DetectState(Screen) State       { return StateUnknown }
+func (f *fakeDriver) SubmitPrompt(string) Submission { return Submission{} }
+func (f *fakeDriver) CancelWork() []byte             { return nil }
 
 // withIsolatedRegistry swaps in a fresh map for the duration of a test and
 // restores the original on cleanup, so tests can Register without leaking

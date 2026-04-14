@@ -29,13 +29,20 @@ outer terminal ←→ mimic ←→ inner PTY ←→ agent TUI (codex/claude)
 Each agent has a driver in `internal/driver/<agent>/`. A driver implements:
 
 ```go
+type Submission struct {
+    Body []byte
+    Submit []byte
+    KeyDelay time.Duration
+    SettleDelay time.Duration
+}
+
 type Driver interface {
     // DetectState reads the current screen and returns the agent's state.
     DetectState(screen Screen) State
-    // SubmitPrompt returns the key sequence to type a prompt and submit it.
-    SubmitPrompt(prompt string) []KeyEvent
+    // SubmitPrompt returns the prompt body, submit bytes, and timing hints.
+    SubmitPrompt(prompt string) Submission
     // CancelWork returns the key sequence to cancel in-progress work.
-    CancelWork() []KeyEvent
+    CancelWork() []byte
 }
 ```
 

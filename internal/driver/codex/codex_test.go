@@ -1,6 +1,7 @@
 package codex_test
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -103,9 +104,17 @@ func TestName(t *testing.T) {
 func TestSubmitPrompt(t *testing.T) {
 	d := codex.New()
 	got := d.SubmitPrompt("hi")
-	want := []byte("hi\r")
-	if string(got) != string(want) {
-		t.Errorf("SubmitPrompt(%q) = %q, want %q", "hi", got, want)
+	if !bytes.Equal(got.Body, []byte("hi")) {
+		t.Errorf("SubmitPrompt(%q).Body = %q, want %q", "hi", got.Body, []byte("hi"))
+	}
+	if !bytes.Equal(got.Submit, []byte{'\r'}) {
+		t.Errorf("SubmitPrompt(%q).Submit = %q, want %q", "hi", got.Submit, []byte{'\r'})
+	}
+	if got.KeyDelay != 15*time.Millisecond {
+		t.Errorf("SubmitPrompt(%q).KeyDelay = %v, want %v", "hi", got.KeyDelay, 15*time.Millisecond)
+	}
+	if got.SettleDelay != time.Second {
+		t.Errorf("SubmitPrompt(%q).SettleDelay = %v, want %v", "hi", got.SettleDelay, time.Second)
 	}
 }
 
@@ -115,16 +124,19 @@ func TestSubmitPrompt_StripsTrailingNewline(t *testing.T) {
 	// box treats differently than a clean submit.
 	d := codex.New()
 	got := d.SubmitPrompt("hi\n")
-	want := []byte("hi\r")
-	if string(got) != string(want) {
-		t.Errorf("SubmitPrompt(%q) = %q, want %q", "hi\n", got, want)
+	if !bytes.Equal(got.Body, []byte("hi")) {
+		t.Errorf("SubmitPrompt(%q).Body = %q, want %q", "hi\n", got.Body, []byte("hi"))
+	}
+	if !bytes.Equal(got.Submit, []byte{'\r'}) {
+		t.Errorf("SubmitPrompt(%q).Submit = %q, want %q", "hi\n", got.Submit, []byte{'\r'})
 	}
 }
 
 func TestSubmitPrompt_EmptyIsEmpty(t *testing.T) {
 	d := codex.New()
-	if got := d.SubmitPrompt(""); len(got) != 0 {
-		t.Errorf("SubmitPrompt(\"\") = %q, want empty", got)
+	got := d.SubmitPrompt("")
+	if len(got.Body) != 0 || len(got.Submit) != 0 || got.KeyDelay != 0 || got.SettleDelay != 0 {
+		t.Errorf("SubmitPrompt(\"\") = %+v, want zero-value submission", got)
 	}
 }
 
@@ -137,16 +149,16 @@ func TestCancelWork(t *testing.T) {
 	}
 }
 
-func TestKeyDelay(t *testing.T) {
+func TestSubmitPrompt_KeyDelay(t *testing.T) {
 	d := codex.New()
-	if got := d.KeyDelay(); got <= 0 || got > 100*time.Millisecond {
-		t.Errorf("KeyDelay() = %v, want a small positive duration", got)
+	if got := d.SubmitPrompt("hi").KeyDelay; got != 15*time.Millisecond {
+		t.Errorf("SubmitPrompt(%q).KeyDelay = %v, want %v", "hi", got, 15*time.Millisecond)
 	}
 }
 
-func TestSubmitSettleDelay(t *testing.T) {
+func TestSubmitPrompt_SettleDelay(t *testing.T) {
 	d := codex.New()
-	if got := d.SubmitSettleDelay(); got < 100*time.Millisecond {
-		t.Errorf("SubmitSettleDelay() = %v, want at least 100ms", got)
+	if got := d.SubmitPrompt("hi").SettleDelay; got != time.Second {
+		t.Errorf("SubmitPrompt(%q).SettleDelay = %v, want %v", "hi", got, time.Second)
 	}
 }

@@ -118,26 +118,29 @@ func (d *Driver) DetectState(screen driver.Screen) driver.State {
 	}
 }
 
-// SubmitPrompt builds the byte sequence for typing and submitting prompt.
+// SubmitPrompt builds the structured prompt submission for codex.
 //
 // Codex's input box treats fast bursts of characters differently than
 // keystrokes — pasting is rendered into a multi-line textarea while
 // keystrokes go into the single-line input that submits on Enter. The
-// caller is expected to pace these bytes at KeyDelay() intervals between
-// each character, then pause SubmitSettleDelay() after the body before
-// the trailing carriage return is delivered.
+// caller is expected to pace body bytes at the returned KeyDelay, then
+// pause for SettleDelay before sending the submit bytes.
 //
 // Trailing newlines on the input are stripped so we don't accidentally
 // send the submit key twice.
-func (d *Driver) SubmitPrompt(prompt string) []byte {
+func (d *Driver) SubmitPrompt(prompt string) driver.Submission {
 	trimmed := strings.TrimRight(prompt, "\r\n")
 	if trimmed == "" {
-		return nil
+		return driver.Submission{}
 	}
-	out := make([]byte, 0, len(trimmed)+1)
-	out = append(out, trimmed...)
-	out = append(out, '\r')
-	return out
+	body := make([]byte, 0, len(trimmed))
+	body = append(body, trimmed...)
+	return driver.Submission{
+		Body:        body,
+		Submit:      []byte{'\r'},
+		KeyDelay:    15 * time.Millisecond,
+		SettleDelay: time.Second,
+	}
 }
 
 // CancelWork returns the Esc key sequence. Single Esc cancels an in-flight
@@ -145,21 +148,6 @@ func (d *Driver) SubmitPrompt(prompt string) []byte {
 // the orchestrator's responsibility.
 func (d *Driver) CancelWork() []byte {
 	return []byte{0x1b}
-}
-
-// KeyDelay is the recommended pause between consecutive prompt-body bytes.
-// 15ms is empirically the minimum that codex's input handler accepts as
-// keystrokes; faster bursts get treated as paste.
-func (d *Driver) KeyDelay() time.Duration {
-	return 15 * time.Millisecond
-}
-
-// SubmitSettleDelay is the pause after typing the prompt body and before
-// the carriage return. Codex's render loop debounces keystroke renders;
-// without this pause the Enter key arrives mid-debounce and is consumed
-// as part of the input rather than as a submit.
-func (d *Driver) SubmitSettleDelay() time.Duration {
-	return time.Second
 }
 
 // Compile-time assertion that Driver implements driver.Driver.
