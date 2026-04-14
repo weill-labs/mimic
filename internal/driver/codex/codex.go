@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/weill-labs/mule/internal/driver"
+	"github.com/weill-labs/mimic/internal/driver"
 )
 
 // Detection substrings — matched against the full rendered screen.

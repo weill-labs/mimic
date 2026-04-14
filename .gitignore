@@ -1,6 +1,6 @@
 # Binaries (anchored to repo root so we don't accidentally ignore
 # cmd/codex-probe/ — the source dir for the probe).
-/mule
+/mimic
 /codex-probe
 *.exe
 

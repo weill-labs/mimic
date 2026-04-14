@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/weill-labs/mule/internal/driver"
-	"github.com/weill-labs/mule/internal/driver/codex"
+	"github.com/weill-labs/mimic/internal/driver"
+	"github.com/weill-labs/mimic/internal/driver/codex"
 )
 
 // stringScreen is a minimal driver.Screen implementation backed by a fixed
@@ -31,10 +31,10 @@ func newStringScreen(text string) *stringScreen {
 	return &stringScreen{text: text, width: maxWidth, height: len(lines)}
 }
 
-func (s *stringScreen) Render() string                 { return s.text }
-func (s *stringScreen) Contains(substr string) bool    { return strings.Contains(s.text, substr) }
-func (s *stringScreen) Width() int                     { return s.width }
-func (s *stringScreen) Height() int                    { return s.height }
+func (s *stringScreen) Render() string              { return s.text }
+func (s *stringScreen) Contains(substr string) bool { return strings.Contains(s.text, substr) }
+func (s *stringScreen) Width() int                  { return s.width }
+func (s *stringScreen) Height() int                 { return s.height }
 func (s *stringScreen) Line(row int) string {
 	lines := strings.Split(s.text, "\n")
 	if row < 0 || row >= len(lines) {

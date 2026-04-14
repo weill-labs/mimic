@@ -1,4 +1,4 @@
-# mule
+# mimic
 
 PTY driver for AI coding agents. Spawns agent TUIs with programmatic control via Unix socket, while keeping the full visual TUI visible.
 
@@ -6,14 +6,14 @@ PTY driver for AI coding agents. Spawns agent TUIs with programmatic control via
 
 ```
 Terminal (amux pane, tmux pane, bare terminal)
-  └── mule codex --socket /tmp/mule-task.sock
+  └── mimic codex --socket /tmp/mimic-task.sock
         ├── inner PTY ←→ codex (the real agent TUI)
         ├── VT emulator (parses output, tracks screen state)
         ├── state machine (starting → idle → working → complete)
         └── Unix socket (submit/status/cancel API)
 ```
 
-mule launches an agent TUI inside an inner PTY and passes through all I/O to the outer terminal — you see the full TUI exactly as if you ran the agent directly. Simultaneously, mule feeds the agent's output through a VT emulator to track screen state internally.
+mimic launches an agent TUI inside an inner PTY and passes through all I/O to the outer terminal — you see the full TUI exactly as if you ran the agent directly. Simultaneously, mimic feeds the agent's output through a VT emulator to track screen state internally.
 
 A Unix socket API lets orchestrators (like [orca](https://github.com/weill-labs/orca)) submit prompts, query status, and cancel work — without fragile send-keys heuristics. The driver knows each agent's TUI intimately: what idle looks like, how to submit input, when work is complete.
 
@@ -21,14 +21,14 @@ A Unix socket API lets orchestrators (like [orca](https://github.com/weill-labs/
 
 ```bash
 # Run codex with a control socket
-mule codex --socket /tmp/mule-task.sock
+mimic codex --socket /tmp/mimic-task.sock
 
 # Submit a prompt (from another process)
 echo '{"method":"submit","params":{"prompt":"Fix the auth bug. TDD."}}' \
-  | socat - UNIX:/tmp/mule-task.sock
+  | socat - UNIX:/tmp/mimic-task.sock
 
 # Query status
-echo '{"method":"status"}' | socat - UNIX:/tmp/mule-task.sock
+echo '{"method":"status"}' | socat - UNIX:/tmp/mimic-task.sock
 # → {"state":"working","elapsed":"12s"}
 ```
 
@@ -51,5 +51,5 @@ Each agent gets a dedicated driver — a state machine with tested patterns for 
 ## Building
 
 ```bash
-go build -o ~/.local/bin/mule .
+go build -o ~/.local/bin/mimic .
 ```

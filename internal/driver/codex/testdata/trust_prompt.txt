@@ -1,4 +1,4 @@
-> [1mYou are in [m/home/cweill/github/weill-labs/mule
+> [1mYou are in [m/home/cweill/github/weill-labs/mimic
 
   Do you trust the contents of this directory? Working with untrusted contents comes with higher
   risk of prompt injection.
@@ -7,7 +7,6 @@
   2. No, quit
 
   [2mPress enter to continue[m
-
 
 
 

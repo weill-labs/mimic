@@ -1,4 +1,4 @@
-module github.com/weill-labs/mule
+module github.com/weill-labs/mimic
 
 go 1.25.0
 

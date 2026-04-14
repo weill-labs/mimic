@@ -1,6 +1,6 @@
 // codex-probe spawns a target agent (codex) inside an inner PTY and dumps
 // rendered screen frames at intervals so we can study the TUI states for
-// driver development. Output goes to /tmp/mule-probe/.
+// driver development. Output goes to /tmp/mimic-probe/.
 //
 // Run as: go run ./cmd/codex-probe codex --yolo
 package main
@@ -14,13 +14,13 @@ import (
 	"time"
 
 	"github.com/creack/pty"
-	"github.com/weill-labs/mule/internal/screen"
+	"github.com/weill-labs/mimic/internal/screen"
 )
 
 func log(format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
 	fmt.Fprintln(os.Stderr, msg)
-	f, err := os.OpenFile("/tmp/mule-probe/probe.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	f, err := os.OpenFile("/tmp/mimic-probe/probe.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err == nil {
 		fmt.Fprintln(f, time.Now().Format("15:04:05.000"), msg)
 		f.Close()
@@ -35,12 +35,12 @@ func main() {
 	binary := os.Args[1]
 	args := os.Args[2:]
 
-	outDir := "/tmp/mule-probe/frames"
+	outDir := "/tmp/mimic-probe/frames"
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		fail(err)
 	}
-	os.Remove("/tmp/mule-probe/raw.log")
-	os.Remove("/tmp/mule-probe/probe.log")
+	os.Remove("/tmp/mimic-probe/raw.log")
+	os.Remove("/tmp/mimic-probe/probe.log")
 	log("probe starting: %s %v", binary, args)
 
 	cmd := exec.Command(binary, args...)
@@ -66,7 +66,7 @@ func main() {
 			n, err := ptmx.Read(buf)
 			if n > 0 {
 				tracker.Write(buf[:n])
-				appendFile("/tmp/mule-probe/raw.log", buf[:n])
+				appendFile("/tmp/mimic-probe/raw.log", buf[:n])
 				log("read %d bytes", n)
 			}
 			if err != nil {

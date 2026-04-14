@@ -21,9 +21,9 @@ import (
 	"time"
 
 	"github.com/creack/pty"
-	"github.com/weill-labs/mule/internal/driver"
-	"github.com/weill-labs/mule/internal/driver/codex"
-	"github.com/weill-labs/mule/internal/screen"
+	"github.com/weill-labs/mimic/internal/driver"
+	"github.com/weill-labs/mimic/internal/driver/codex"
+	"github.com/weill-labs/mimic/internal/screen"
 )
 
 // waitForState polls DetectState every 100ms until the target state is
