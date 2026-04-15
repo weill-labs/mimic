@@ -1,21 +1,40 @@
-# Binaries (anchored to repo root so we don't accidentally ignore
-# cmd/codex-probe/ — the source dir for the probe).
+# Binary
 /mimic
 /codex-probe
 *.exe
 
-# Claude Code session state
-.claude/
+# GoReleaser
+dist/
 
-# Test artifacts
-*.test
-coverage.out
+# Planning files (session-specific, not repo knowledge)
+task_plan.md
+findings.md
+progress.md
+
+# Claude hooks state
+.claude/.tdd-ack
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+*~
 
 # OS
 .DS_Store
+Thumbs.db
+
+# Test artifacts
+*.test
+*.out
+coverage.txt
+coverage-summary.txt
+coverage.html
+results.json
+
+# orca clone pool (large, machine-local)
+.orca/pool/
+
+# Firebase MCP plugin debug log
+firebase-debug.log

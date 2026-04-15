@@ -1,0 +1,112 @@
+#!/bin/bash
+# Pre-commit hook
+
+# Skip during rebase — intermediate states have compilation errors that
+# cause goimports to revert partially-resolved conflict edits.
+if [ -d ".git/rebase-merge" ] || [ -d ".git/rebase-apply" ]; then
+    exit 0
+fi
+
+# Block direct commits to main — use feature branches + PRs
+BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null)
+if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
+    echo "ERROR: direct commits to $BRANCH are not allowed"
+    echo "  Create a feature branch: git checkout -b my-feature"
+    echo "  Override with: git commit --no-verify"
+    exit 1
+fi
+
+# Run goimports on staged Go files
+STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$')
+if [ -z "$STAGED" ]; then
+    exit 0
+fi
+
+# Check goimports is available
+if ! command -v goimports &>/dev/null; then
+    echo "goimports not found. Install: go install golang.org/x/tools/cmd/goimports@latest"
+    exit 1
+fi
+
+# Run goimports on staged files
+NEEDS_FMT=false
+for file in $STAGED; do
+    if [ -f "$file" ]; then
+        OUTPUT=$(goimports -l "$file")
+        if [ -n "$OUTPUT" ]; then
+            goimports -w "$file"
+            git add "$file"
+            NEEDS_FMT=true
+        fi
+    fi
+done
+
+if [ "$NEEDS_FMT" = true ]; then
+    echo "goimports: auto-formatted staged Go files"
+fi
+
+# Reject new time.Sleep additions in test files — use deterministic waits instead
+SLEEP_ADDITIONS=$(git diff --cached --diff-filter=ACM -U0 -- '*_test.go' | grep '^\+' | grep -vF '+++' | grep -F 'time.Sleep')
+if [ -n "$SLEEP_ADDITIONS" ]; then
+    echo "ERROR: new time.Sleep added to test files"
+    echo "  Use deterministic wait primitives instead."
+    echo ""
+    echo "  Added lines:"
+    echo "$SLEEP_ADDITIONS"
+    exit 1
+fi
+
+# Reject t.Skip/t.Skipf additions in test files — tests should never be skipped
+SKIP_ADDITIONS=$(git diff --cached --diff-filter=ACM -U0 -- '*_test.go' | grep '^\+' | grep -vF '+++' | grep -F 't.Skip')
+if [ -n "$SKIP_ADDITIONS" ]; then
+    echo "ERROR: new t.Skip/t.Skipf added to test files"
+    echo "  Tests should never be skipped. Fix the underlying issue instead:"
+    echo "    - Missing dependency? Add setup code or a mock"
+    echo "    - Environment-specific? Use build tags or test fixtures"
+    echo ""
+    echo "  Added lines:"
+    echo "$SKIP_ADDITIONS"
+    exit 1
+fi
+
+# Reject new mutable package-level vars (test seams) — inject via struct/param instead
+if [ -n "$STAGED" ]; then
+    GLOBALS_VIOLATIONS=$(STAGED_ONLY=1 bash scripts/lint-globals.sh 2>&1)
+    if [ $? -ne 0 ]; then
+        echo "$GLOBALS_VIOLATIONS"
+        exit 1
+    fi
+fi
+
+# Reject new sync.Mutex/RWMutex/Map — use actor model instead
+if [ -n "$STAGED" ]; then
+    SYNC_VIOLATIONS=$(STAGED_ONLY=1 bash scripts/lint-sync.sh 2>&1)
+    if [ $? -ne 0 ]; then
+        echo "$SYNC_VIOLATIONS"
+        exit 1
+    fi
+fi
+
+# Reject new test functions missing t.Parallel()
+if [ -n "$STAGED" ]; then
+    PARALLEL_VIOLATIONS=$(STAGED_ONLY=1 bash scripts/lint-test-parallel.sh 2>&1)
+    if [ $? -ne 0 ]; then
+        echo "$PARALLEL_VIOLATIONS"
+        exit 1
+    fi
+fi
+
+# Validate YAML syntax on staged workflow files
+STAGED_YAML=$(git diff --cached --name-only --diff-filter=ACM | grep '\.github/workflows/.*\.yml$')
+if [ -n "$STAGED_YAML" ]; then
+    if command -v uv &>/dev/null; then
+        for file in $STAGED_YAML; do
+            if [ -f "$file" ]; then
+                if ! uv run --with pyyaml python3 -c "import yaml, sys; yaml.safe_load(open(sys.argv[1]))" "$file" 2>/dev/null; then
+                    echo "YAML syntax error in $file"
+                    exit 1
+                fi
+            fi
+        done
+    fi
+fi
