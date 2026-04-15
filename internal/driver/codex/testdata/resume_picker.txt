@@ -1,0 +1,4 @@
+Resume a previous session
+Search:
+
+enter to resume     esc to start new     ctrl + c to quit

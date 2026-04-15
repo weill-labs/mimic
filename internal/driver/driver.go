@@ -91,6 +91,10 @@ type Driver interface {
 	// the recommended pacing between them.
 	SubmitPrompt(prompt string) Submission
 
+	// ResumePrompt returns the structured input sequence that selects the
+	// resume target after the agent's resume UI has rendered.
+	ResumePrompt() Submission
+
 	// CancelWork returns the byte sequence to cancel in-progress work.
 	// For most agents this is a single Esc; some may use Ctrl+C.
 	CancelWork() []byte
