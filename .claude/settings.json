@@ -1,0 +1,60 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/stop-checks.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/block-autonomous-backlog.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/block-kill-without-diagnostics.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/block-exit-without-postmortem.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/post-pr-review.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/post-merge-postmortem.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

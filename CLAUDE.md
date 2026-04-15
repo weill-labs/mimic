@@ -2,7 +2,8 @@
 
 ## Project tracking
 
-Linear project: https://linear.app/weill-labs/project/mimic-0f918bb42136
+Linear project (mimic): https://linear.app/weill-labs/project/mimic-483188e383b7
+Linear project (mule, legacy): https://linear.app/weill-labs/project/mule-0f918bb42136
 
 ## What is mimic?
 
