@@ -121,6 +121,45 @@ func TestIntegration_ClaudeSocketSubmitAndComplete(t *testing.T) {
 	}
 }
 
+func TestIntegration_MimicSocketClaudeCancel(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("claude"); err != nil {
+		skipf(t, "claude not installed: %v", err)
+	}
+
+	tmpDir := t.TempDir()
+	socketPath := filepath.Join(tmpDir, "mimic.sock")
+	binaryPath := buildMimic(t, tmpDir)
+	spawnMimic(t, binaryPath, "claude", "--socket", socketPath)
+
+	waitForSocket(t, socketPath, 10*time.Second)
+
+	if got := waitForWireState(t, socketPath, api.WireStateIdle, 30*time.Second); got != api.WireStateIdle {
+		t.Fatalf("mimic did not reach idle: last=%q", got)
+	}
+
+	var submitResp okResponse
+	rpc(t, socketPath, `{"method":"submit","params":{"prompt":"write a detailed essay about the history of typewriters"}}`, &submitResp)
+	if !submitResp.OK {
+		t.Fatalf("submit response = %+v, want ok", submitResp)
+	}
+
+	if got := waitForWireState(t, socketPath, api.WireStateWorking, 10*time.Second); got != api.WireStateWorking {
+		t.Fatalf("mimic did not enter working state: last=%q", got)
+	}
+
+	var cancelResp okResponse
+	rpc(t, socketPath, `{"method":"cancel"}`, &cancelResp)
+	if !cancelResp.OK {
+		t.Fatalf("cancel response = %+v, want ok", cancelResp)
+	}
+
+	if got := waitForWireState(t, socketPath, api.WireStateComplete, 10*time.Second); got != api.WireStateComplete {
+		t.Fatalf("mimic did not enter complete state after cancel: last=%q", got)
+	}
+}
+
 func buildMimic(t *testing.T, dir string) string {
 	t.Helper()
 

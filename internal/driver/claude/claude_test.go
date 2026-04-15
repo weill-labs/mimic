@@ -66,6 +66,7 @@ func TestDetectState(t *testing.T) {
 		{"idle typed prompt", "idle_typed_prompt.txt", driver.StateIdle},
 		{"working while contemplating", "working_contemplating.txt", driver.StateWorking},
 		{"working while churning", "working_churning.txt", driver.StateWorking},
+		{"working while whirring", "working_whirring.txt", driver.StateWorking},
 		{"error after escape cancel", "error_after_cancel.txt", driver.StateError},
 		{"exited after double ctrl+c", "exited_after_ctrlc.txt", driver.StateExited},
 	}
@@ -91,6 +92,54 @@ func TestDetectStatePriority_ExitedWinsOverError(t *testing.T) {
 	screen := loadFixture(t, "exited_after_ctrlc.txt")
 	if got := d.DetectState(screen); got != driver.StateExited {
 		t.Fatalf("exited fixture detected as %q, want %q", got, driver.StateExited)
+	}
+}
+
+func TestDetectState_DetectsANSIStyledWorkingStatusLine(t *testing.T) {
+	t.Parallel()
+
+	d := claude.New()
+	screen := newStringScreen(
+		" Claude Code\n" +
+			" \x1b[38;2;215;119;87m*\x1b[39m \x1b[38;2;215;119;87mCanoodling… \x1b[38;2;164;164;164m(thinking)\n",
+	)
+
+	if got := d.DetectState(screen); got != driver.StateWorking {
+		t.Fatalf("DetectState(ansi working status) = %q, want %q\n--- screen ---\n%s", got, driver.StateWorking, screen.Render())
+	}
+}
+
+func TestDetectState_DetectsSpinnerOnlyStatusLine(t *testing.T) {
+	t.Parallel()
+
+	d := claude.New()
+	screen := newStringScreen(" Claude Code\n ✶\n")
+
+	if got := d.DetectState(screen); got != driver.StateWorking {
+		t.Fatalf("DetectState(spinner only) = %q, want %q\n--- screen ---\n%s", got, driver.StateWorking, screen.Render())
+	}
+}
+
+func TestDetectState_DetectsStreamingTranscriptWithoutHeader(t *testing.T) {
+	t.Parallel()
+
+	d := claude.New()
+	screen := newStringScreen(
+		"The typewriter's story begins long before the machines we recognize today.\n" +
+			"The earliest known patent for a writing machine was granted in 1714.\n" +
+			"Inventors across Europe and America kept iterating on the idea.\n" +
+			"\n" +
+			"────────────────────────────────────────────────────────────────────────────────\n" +
+			"❯ \n" +
+			"────────────────────────────────────────────────────────────────────────────────\n" +
+			"[Apr 15 08:27:40]\n" +
+			"Now using extra usage\n" +
+			"You're now using extra usage · Your session limit resets 9am (UTC)\n" +
+			"● high · /effort\n",
+	)
+
+	if got := d.DetectState(screen); got != driver.StateWorking {
+		t.Fatalf("DetectState(streaming transcript) = %q, want %q\n--- screen ---\n%s", got, driver.StateWorking, screen.Render())
 	}
 }
 
