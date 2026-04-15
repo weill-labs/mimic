@@ -91,7 +91,7 @@ func (w *recordingWriter) String() string {
 func TestDispatcherTracksWireStateAndCompleteLatch(t *testing.T) {
 	fake := &fakeDriver{state: driver.StateStarting, cancel: []byte{0x1b}}
 	writer := newRecordingWriter()
-	dispatcher := newDispatcher(fake, fakeScreen{}, writer, 5*time.Millisecond, time.Hour, 20*time.Millisecond)
+	dispatcher := newDispatcher(fake, fakeScreen{}, writer, 5*time.Millisecond, time.Hour, 5, 20*time.Millisecond)
 	defer dispatcher.Close()
 
 	waitForState(t, dispatcher, WireStateStarting)
@@ -135,7 +135,7 @@ func TestDispatcherTracksWireStateAndCompleteLatch(t *testing.T) {
 
 func TestDispatcherRejectsSubmitOutsideIdleOrComplete(t *testing.T) {
 	fake := &fakeDriver{state: driver.StateStarting, cancel: []byte{0x1b}}
-	dispatcher := newDispatcher(fake, fakeScreen{}, newRecordingWriter(), 5*time.Millisecond, time.Hour, 20*time.Millisecond)
+	dispatcher := newDispatcher(fake, fakeScreen{}, newRecordingWriter(), 5*time.Millisecond, time.Hour, 5, 20*time.Millisecond)
 	defer dispatcher.Close()
 
 	if err := dispatcher.Submit("blocked"); err == nil {
@@ -152,13 +152,26 @@ func TestDispatcherRejectsSubmitOutsideIdleOrComplete(t *testing.T) {
 func TestDispatcherAutoDismissesTrustPromptAndNeverSurfacesIt(t *testing.T) {
 	fake := &fakeDriver{state: driver.StateTrustPrompt, cancel: []byte{0x1b}}
 	writer := newRecordingWriter()
-	dispatcher := newDispatcher(fake, fakeScreen{}, writer, 5*time.Millisecond, 20*time.Millisecond, 20*time.Millisecond)
+	dispatcher := newDispatcher(fake, fakeScreen{}, writer, 5*time.Millisecond, 20*time.Millisecond, 5, 20*time.Millisecond)
 	defer dispatcher.Close()
 
 	waitForWrite(t, writer, "\r")
 	if got := dispatcher.Status().State; got != WireStateStarting {
 		t.Fatalf("Status().State = %q, want %q", got, WireStateStarting)
 	}
+
+	fake.setState(driver.StateIdle)
+	waitForState(t, dispatcher, WireStateIdle)
+}
+
+func TestDispatcherTrustPromptRetriesThenErrors(t *testing.T) {
+	fake := &fakeDriver{state: driver.StateTrustPrompt, cancel: []byte{0x1b}}
+	writer := newRecordingWriter()
+	dispatcher := newDispatcher(fake, fakeScreen{}, writer, 5*time.Millisecond, 10*time.Millisecond, 2, 20*time.Millisecond)
+	defer dispatcher.Close()
+
+	waitForStringCount(t, writer, "\r", 2)
+	waitForState(t, dispatcher, WireStateError)
 }
 
 func TestDispatcherCancelInterruptsActiveSubmission(t *testing.T) {
@@ -169,7 +182,7 @@ func TestDispatcherCancelInterruptsActiveSubmission(t *testing.T) {
 		cancel:      []byte{0x1b},
 	}
 	writer := newRecordingWriter()
-	dispatcher := newDispatcher(fake, fakeScreen{}, writer, 5*time.Millisecond, time.Hour, 50*time.Millisecond)
+	dispatcher := newDispatcher(fake, fakeScreen{}, writer, 5*time.Millisecond, time.Hour, 5, 50*time.Millisecond)
 	defer dispatcher.Close()
 
 	waitForState(t, dispatcher, WireStateIdle)
@@ -221,4 +234,16 @@ func waitForWrite(t *testing.T, writer *recordingWriter, want string) {
 			t.Fatalf("never observed PTY write %q; writes=%q", want, writer.String())
 		}
 	}
+}
+
+func waitForStringCount(t *testing.T, writer *recordingWriter, want string, count int) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if strings.Count(writer.String(), want) >= count {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("never observed %d writes of %q; writes=%q", count, want, writer.String())
 }

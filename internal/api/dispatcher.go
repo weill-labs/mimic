@@ -19,12 +19,14 @@ const (
 	WireStateIdle     WireState = "idle"
 	WireStateWorking  WireState = "working"
 	WireStateComplete WireState = "complete"
+	WireStateError    WireState = "error"
 	WireStateExited   WireState = "exited"
 )
 
 const (
 	defaultPollInterval         = 100 * time.Millisecond
 	defaultTrustDismissInterval = 500 * time.Millisecond
+	defaultTrustDismissMax      = 5
 	defaultSubmitGrace          = 2 * time.Second
 )
 
@@ -44,13 +46,15 @@ type Dispatcher struct {
 
 	writeMu sync.Mutex
 
-	mu               sync.Mutex
-	currentState     driver.State
-	completeLatched  bool
-	submitInProgress bool
-	submitCanceled   bool
-	submitBlockUntil time.Time
-	lastTrustDismiss time.Time
+	mu                sync.Mutex
+	currentState      driver.State
+	completeLatched   bool
+	submitInProgress  bool
+	submitCanceled    bool
+	submitBlockUntil  time.Time
+	lastTrustDismiss  time.Time
+	trustDismissCount int
+	trustDismissStuck bool
 
 	status atomic.Value
 
@@ -60,12 +64,21 @@ type Dispatcher struct {
 
 	pollInterval         time.Duration
 	trustDismissInterval time.Duration
+	trustDismissMax      int
 	submitGrace          time.Duration
 }
 
 // NewDispatcher constructs and starts the state-polling dispatcher.
 func NewDispatcher(d driver.Driver, screen driver.Screen, ptmx io.Writer) *Dispatcher {
-	return newDispatcher(d, screen, ptmx, defaultPollInterval, defaultTrustDismissInterval, defaultSubmitGrace)
+	return newDispatcher(
+		d,
+		screen,
+		ptmx,
+		defaultPollInterval,
+		defaultTrustDismissInterval,
+		defaultTrustDismissMax,
+		defaultSubmitGrace,
+	)
 }
 
 func newDispatcher(
@@ -74,8 +87,13 @@ func newDispatcher(
 	ptmx io.Writer,
 	pollInterval time.Duration,
 	trustDismissInterval time.Duration,
+	trustDismissMax int,
 	submitGrace time.Duration,
 ) *Dispatcher {
+	if trustDismissMax <= 0 {
+		trustDismissMax = 1
+	}
+
 	dispatcher := &Dispatcher{
 		driver:               d,
 		screen:               screen,
@@ -85,6 +103,7 @@ func newDispatcher(
 		doneCh:               make(chan struct{}),
 		pollInterval:         pollInterval,
 		trustDismissInterval: trustDismissInterval,
+		trustDismissMax:      trustDismissMax,
 		submitGrace:          submitGrace,
 	}
 	dispatcher.status.Store(Status{State: WireStateStarting})
@@ -116,7 +135,7 @@ func (d *Dispatcher) Submit(prompt string) error {
 	now := time.Now()
 
 	d.mu.Lock()
-	wireState := mapWireState(d.currentState, d.completeLatched)
+	wireState := d.wireStateLocked()
 	if d.submitInProgress || (!d.submitBlockUntil.IsZero() && now.Before(d.submitBlockUntil)) {
 		d.mu.Unlock()
 		return errors.New("submit rejected: submission already in progress")
@@ -191,15 +210,36 @@ func (d *Dispatcher) refresh() {
 	shouldDismissTrust := false
 
 	d.mu.Lock()
+	if rawState == driver.StateTrustPrompt {
+		d.currentState = rawState
+		if d.trustDismissCount >= d.trustDismissMax {
+			d.trustDismissStuck = true
+			d.storeStatusLocked(d.wireStateLocked())
+			d.mu.Unlock()
+			return
+		}
+		if now.Sub(d.lastTrustDismiss) >= d.trustDismissInterval {
+			d.lastTrustDismiss = now
+			d.trustDismissCount++
+			shouldDismissTrust = true
+		}
+		d.storeStatusLocked(d.wireStateLocked())
+		d.mu.Unlock()
+
+		if shouldDismissTrust {
+			_ = d.writeAll([]byte{'\r'})
+		}
+		return
+	}
+
+	d.trustDismissCount = 0
+	d.trustDismissStuck = false
+	d.lastTrustDismiss = time.Time{}
 	if d.currentState == driver.StateWorking && (rawState == driver.StateIdle || rawState == driver.StateError) {
 		d.completeLatched = true
 	}
 	if rawState == driver.StateError {
 		d.completeLatched = true
-	}
-	if rawState == driver.StateTrustPrompt && now.Sub(d.lastTrustDismiss) >= d.trustDismissInterval {
-		d.lastTrustDismiss = now
-		shouldDismissTrust = true
 	}
 	if !d.submitBlockUntil.IsZero() {
 		switch rawState {
@@ -213,12 +253,8 @@ func (d *Dispatcher) refresh() {
 	}
 
 	d.currentState = rawState
-	d.storeStatusLocked(mapWireState(rawState, d.completeLatched))
+	d.storeStatusLocked(d.wireStateLocked())
 	d.mu.Unlock()
-
-	if shouldDismissTrust {
-		_ = d.writeAll([]byte{'\r'})
-	}
 }
 
 func (d *Dispatcher) typeSubmission(submission driver.Submission) error {
@@ -278,6 +314,13 @@ func (d *Dispatcher) writeAll(data []byte) error {
 
 func (d *Dispatcher) storeStatusLocked(state WireState) {
 	d.status.Store(Status{State: state})
+}
+
+func (d *Dispatcher) wireStateLocked() WireState {
+	if d.trustDismissStuck {
+		return WireStateError
+	}
+	return mapWireState(d.currentState, d.completeLatched)
 }
 
 func mapWireState(rawState driver.State, completeLatched bool) WireState {
