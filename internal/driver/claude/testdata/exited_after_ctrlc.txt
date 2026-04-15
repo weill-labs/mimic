@@ -1,0 +1,16 @@
+ Claude Code
+ Opus 4.6 (1M context) · Claude API
+ ~/github/weill-labs/mule/.orca/pool/clone-02
+
+❯ run bash command sleep 10 then echo done
+
+● Bash(sleep 10 && echo done)
+  ⎿  Interrupted · What should Claude do instead?
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+❯
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  Press Ctrl-C again to exit
+
+Resume this session with:
+claude --resume 9951cea2-c9cb-47e6-9dc1-c0624b33bb7f

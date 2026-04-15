@@ -14,6 +14,7 @@ import (
 
 	// Side-effect imports: each driver package registers itself in its
 	// init() so driver.Lookup can find it. Add new driver packages here.
+	_ "github.com/weill-labs/mimic/internal/driver/claude"
 	_ "github.com/weill-labs/mimic/internal/driver/codex"
 )
 

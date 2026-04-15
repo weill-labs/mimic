@@ -24,8 +24,9 @@ const (
 	// an explicit splash/loading screen.
 	StateStarting State = "starting"
 
-	// StateTrustPrompt means the agent is waiting for the user to approve
-	// running in the current directory (first-run safety prompt).
+	// StateTrustPrompt means the agent is blocked on an approval prompt that
+	// the orchestrator may auto-dismiss, such as a first-run directory trust
+	// dialog or a per-tool permission confirmation.
 	StateTrustPrompt State = "trust_prompt"
 
 	// StateIdle means the agent is showing its input prompt and waiting
