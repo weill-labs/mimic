@@ -137,6 +137,27 @@ func TestDispatcherTracksWireStateAndCompleteLatch(t *testing.T) {
 	waitForState(t, dispatcher, WireStateExited)
 }
 
+func TestDispatcherTracksFastSubmitWithoutObservedWorkingScreen(t *testing.T) {
+	t.Parallel()
+
+	fake := &fakeDriver{state: driver.StateIdle, cancel: []byte{0x1b}}
+	writer := newRecordingWriter()
+	dispatcher := newDispatcher(fake, fakeScreen{}, writer, 5*time.Millisecond, time.Hour, 5, 20*time.Millisecond)
+	defer dispatcher.Close()
+
+	waitForState(t, dispatcher, WireStateIdle)
+
+	if err := dispatcher.Submit("fast"); err != nil {
+		t.Fatalf("Submit(fast): %v", err)
+	}
+	if !strings.Contains(writer.String(), "fast\r") {
+		t.Fatalf("writer = %q, want prompt bytes", writer.String())
+	}
+
+	waitForState(t, dispatcher, WireStateWorking)
+	waitForState(t, dispatcher, WireStateComplete)
+}
+
 func TestDispatcherRejectsSubmitOutsideIdleOrComplete(t *testing.T) {
 	fake := &fakeDriver{state: driver.StateStarting, cancel: []byte{0x1b}}
 	dispatcher := newDispatcher(fake, fakeScreen{}, newRecordingWriter(), 5*time.Millisecond, time.Hour, 5, 20*time.Millisecond)

@@ -247,6 +247,11 @@ func (d *Dispatcher) refresh() {
 			d.submitBlockUntil = time.Time{}
 		default:
 			if now.After(d.submitBlockUntil) {
+				// Fast turns can finish between poll ticks; once the grace window
+				// expires on an idle screen, treat the accepted submit as complete.
+				if rawState == driver.StateIdle {
+					d.completeLatched = true
+				}
 				d.submitBlockUntil = time.Time{}
 			}
 		}
@@ -319,6 +324,14 @@ func (d *Dispatcher) storeStatusLocked(state WireState) {
 func (d *Dispatcher) wireStateLocked() WireState {
 	if d.trustDismissStuck {
 		return WireStateError
+	}
+	if d.submitInProgress {
+		return WireStateWorking
+	}
+	// Surface accepted submits as working until either a real working screen
+	// arrives or the grace window expires.
+	if !d.submitBlockUntil.IsZero() && !d.completeLatched && d.currentState != driver.StateWorking && d.currentState != driver.StateExited {
+		return WireStateWorking
 	}
 	return mapWireState(d.currentState, d.completeLatched)
 }

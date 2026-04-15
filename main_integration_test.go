@@ -89,6 +89,38 @@ func TestIntegration_MimicSocketCodexCancel(t *testing.T) {
 	}
 }
 
+func TestIntegration_ClaudeSocketSubmitAndComplete(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("claude"); err != nil {
+		skipf(t, "claude not installed: %v", err)
+	}
+
+	tmpDir := t.TempDir()
+	socketPath := filepath.Join(tmpDir, "mimic.sock")
+	binaryPath := buildMimic(t, tmpDir)
+	spawnMimic(t, binaryPath, "claude", "--socket", socketPath)
+
+	waitForSocket(t, socketPath, 10*time.Second)
+
+	if got := waitForWireState(t, socketPath, api.WireStateIdle, 30*time.Second); got != api.WireStateIdle {
+		t.Fatalf("mimic did not reach idle: last=%q", got)
+	}
+
+	var submitResp okResponse
+	rpc(t, socketPath, `{"method":"submit","params":{"prompt":"say hi in one word"}}`, &submitResp)
+	if !submitResp.OK {
+		t.Fatalf("submit response = %+v, want ok", submitResp)
+	}
+
+	if got := waitForWireState(t, socketPath, api.WireStateWorking, 5*time.Second); got != api.WireStateWorking {
+		t.Fatalf("mimic did not enter working state: last=%q", got)
+	}
+	if got := waitForWireState(t, socketPath, api.WireStateComplete, 60*time.Second); got != api.WireStateComplete {
+		t.Fatalf("mimic did not enter complete state: last=%q", got)
+	}
+}
+
 func buildMimic(t *testing.T, dir string) string {
 	t.Helper()
 
@@ -119,7 +151,6 @@ func spawnMimic(t *testing.T, binaryPath string, args ...string) {
 		_, _ = io.Copy(io.Discard, ptmx)
 	}()
 }
-
 func waitForSocket(t *testing.T, path string, timeout time.Duration) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
@@ -168,4 +199,12 @@ func rpc(t *testing.T, socketPath string, payload string, out any) {
 	if err := json.Unmarshal(line, out); err != nil {
 		t.Fatalf("Unmarshal(%q): %v", string(line), err)
 	}
+}
+
+func skipf(tb interface {
+	Helper()
+	Skipf(string, ...any)
+}, format string, args ...any) {
+	tb.Helper()
+	tb.Skipf(format, args...)
 }
