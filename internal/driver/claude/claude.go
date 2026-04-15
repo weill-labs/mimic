@@ -134,6 +134,12 @@ func (d *Driver) CancelWork() []byte {
 	return []byte{0x1b}
 }
 
+// ResumePrompt returns an empty submission. Claude Code does not currently
+// have a session resume picker like codex does.
+func (d *Driver) ResumePrompt() driver.Submission {
+	return driver.Submission{}
+}
+
 func containsAny(haystack string, needles []string) bool {
 	for _, needle := range needles {
 		if strings.Contains(haystack, needle) {
