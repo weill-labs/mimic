@@ -1,0 +1,16 @@
+ Claude Code
+ Opus 4.6 (1M context) · Claude API
+ ~/github/weill-labs/mule/.orca/pool/clone-02
+
+❯ run bash command sleep 10 then echo done
+
+● Bash(sleep 10 && echo done)
+  ⎿  Running…
+
+✶ Churning…
+  ⎿  Tip: Use git worktrees to run multiple Claude sessions in parallel.
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+❯
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  [Apr 15 06:59:10] cweill@hetzner-1:~/github/weill-labs/mule/.orca/pool/clone-02 (LAB-1188) | 39…
