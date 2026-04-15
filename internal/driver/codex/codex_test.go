@@ -64,6 +64,7 @@ func TestDetectState(t *testing.T) {
 	}{
 		{"blank pre-render screen", "starting_blank.txt", driver.StateStarting},
 		{"trust prompt on first run", "trust_prompt.txt", driver.StateTrustPrompt},
+		{"resume picker is idle", "resume_picker.txt", driver.StateIdle},
 		{"idle with typed prompt", "idle_typed_prompt.txt", driver.StateIdle},
 		{"working at t+300ms", "working_t300ms.txt", driver.StateWorking},
 		{"working at t+1s", "working_t1000ms.txt", driver.StateWorking},
@@ -137,6 +138,23 @@ func TestSubmitPrompt_EmptyIsEmpty(t *testing.T) {
 	got := d.SubmitPrompt("")
 	if len(got.Body) != 0 || len(got.Submit) != 0 || got.KeyDelay != 0 || got.SettleDelay != 0 {
 		t.Errorf("SubmitPrompt(\"\") = %+v, want zero-value submission", got)
+	}
+}
+
+func TestResumePrompt(t *testing.T) {
+	d := codex.New()
+	got := d.ResumePrompt()
+	if !bytes.Equal(got.Body, []byte{'.'}) {
+		t.Errorf("ResumePrompt().Body = %q, want %q", got.Body, []byte{'.'})
+	}
+	if !bytes.Equal(got.Submit, []byte{'\r'}) {
+		t.Errorf("ResumePrompt().Submit = %q, want %q", got.Submit, []byte{'\r'})
+	}
+	if got.KeyDelay != 15*time.Millisecond {
+		t.Errorf("ResumePrompt().KeyDelay = %v, want %v", got.KeyDelay, 15*time.Millisecond)
+	}
+	if got.SettleDelay != 100*time.Millisecond {
+		t.Errorf("ResumePrompt().SettleDelay = %v, want %v", got.SettleDelay, 100*time.Millisecond)
 	}
 }
 

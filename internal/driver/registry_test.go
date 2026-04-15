@@ -14,6 +14,7 @@ type fakeDriver struct{ name string }
 func (f *fakeDriver) Name() string                   { return f.name }
 func (f *fakeDriver) DetectState(Screen) State       { return StateUnknown }
 func (f *fakeDriver) SubmitPrompt(string) Submission { return Submission{} }
+func (f *fakeDriver) ResumePrompt() Submission       { return Submission{} }
 func (f *fakeDriver) CancelWork() []byte             { return nil }
 
 // withIsolatedRegistry swaps in a fresh map for the duration of a test and

@@ -5,6 +5,7 @@
 // against the rendered screen:
 //
 //   - Trust prompt:        "Do you trust the contents of this directory"
+//   - Resume picker:       "Resume a previous session"
 //   - Working:             "esc to interrupt"
 //   - Conversation error:  "Conversation interrupted"
 //   - Exit summary:        "Token usage:" + "To continue this session"
@@ -51,6 +52,10 @@ const (
 	// state once the TUI has finished its initial render, so it doubles
 	// as a "TUI has rendered" probe — useful for the idle fallback rule.
 	headerMarker = "OpenAI Codex"
+
+	// resumePickerMarker is the title of codex's session picker shown by
+	// `codex resume`. It's an idle-like state waiting for keyboard input.
+	resumePickerMarker = "Resume a previous session"
 )
 
 // Driver implements driver.Driver for the codex CLI.
@@ -92,7 +97,7 @@ func (d *Driver) Name() string {
 //  3. error        — "Conversation interrupted" notice still showing in an
 //     active session (input box present).
 //  4. working      — "esc to interrupt" footer of an in-flight turn.
-//  5. idle         — header box present and none of the above.
+//  5. idle         — resume picker or header box present and none of the above.
 //  6. starting     — TUI has not rendered yet (very early in session).
 func (d *Driver) DetectState(screen driver.Screen) driver.State {
 	rendered := screen.Render()
@@ -109,6 +114,9 @@ func (d *Driver) DetectState(screen driver.Screen) driver.State {
 
 	case strings.Contains(rendered, workingMarker):
 		return driver.StateWorking
+
+	case strings.Contains(rendered, resumePickerMarker):
+		return driver.StateIdle
 
 	case strings.Contains(rendered, headerMarker):
 		return driver.StateIdle
@@ -140,6 +148,17 @@ func (d *Driver) SubmitPrompt(prompt string) driver.Submission {
 		Submit:      []byte{'\r'},
 		KeyDelay:    15 * time.Millisecond,
 		SettleDelay: time.Second,
+	}
+}
+
+// ResumePrompt selects the most recent session from codex's resume picker by
+// typing "." into the search box and confirming the first match with Enter.
+func (d *Driver) ResumePrompt() driver.Submission {
+	return driver.Submission{
+		Body:        []byte{'.'},
+		Submit:      []byte{'\r'},
+		KeyDelay:    15 * time.Millisecond,
+		SettleDelay: 100 * time.Millisecond,
 	}
 }
 

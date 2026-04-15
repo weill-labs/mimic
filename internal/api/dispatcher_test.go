@@ -40,6 +40,10 @@ func (f *fakeDriver) SubmitPrompt(prompt string) driver.Submission {
 	}
 }
 
+func (f *fakeDriver) ResumePrompt() driver.Submission {
+	return driver.Submission{}
+}
+
 func (f *fakeDriver) CancelWork() []byte {
 	f.mu.Lock()
 	defer f.mu.Unlock()
